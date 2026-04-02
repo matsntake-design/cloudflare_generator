@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.pyc
+
+# Generated files
+cloudflare_generator/output/
+cloudflare_generator/master_articles.json
+cloudflare_generator/master_articles.sample.json
+
+# OS / editor
+.DS_Store
+Thumbs.db
