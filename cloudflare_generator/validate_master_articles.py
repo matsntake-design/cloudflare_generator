@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 from collections import Counter, defaultdict
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -11,6 +12,8 @@ MASTER = ROOT / "master_articles.json"
 
 IMAGE_RE = re.compile(r"^https?://.+?(?:\.jpg|\.jpeg|\.png|\.webp|\.gif|\.bmp|\.avif)(?:\?.*)?$", re.IGNORECASE)
 MAX_FUTURE_MS = 10 * 60 * 1000
+JST = timezone(timedelta(hours=9))
+MIDNIGHT_CLUSTER_WARN_COUNT = 3
 
 
 def main() -> int:
@@ -24,6 +27,7 @@ def main() -> int:
 
     problems = defaultdict(list)
     url_counter = Counter()
+    midnight_clusters = defaultdict(Counter)
 
     for index, article in enumerate(articles, start=1):
         url = (article.get("url") or "").strip()
@@ -56,10 +60,21 @@ def main() -> int:
             problems[site_id].append(f"#{index}: publishedAtなし")
         elif generated_at and published_at > generated_at + MAX_FUTURE_MS:
             problems[site_id].append(f"#{index}: publishedAtが未来すぎる -> {published_at}")
+        elif published_at > 10_000_000_000:
+            dt = datetime.fromtimestamp(published_at / 1000, JST)
+            if dt.hour == 0 and dt.minute == 0 and dt.second == 0:
+                midnight_clusters[site_id][dt.strftime("%Y-%m-%d")] += 1
 
     duplicates = [url for url, count in url_counter.items() if count > 1]
     for dup in duplicates:
         print(f"[DUP] {dup}")
+
+    for site_id, counter in midnight_clusters.items():
+        for day, count in sorted(counter.items()):
+            if count >= MIDNIGHT_CLUSTER_WARN_COUNT:
+                problems[site_id].append(
+                    f"publishedAt が {day} 00:00 に {count}件集中しています（時刻取得失敗の疑い）"
+                )
 
     if not problems and not duplicates:
         print("問題は見つかりませんでした。")

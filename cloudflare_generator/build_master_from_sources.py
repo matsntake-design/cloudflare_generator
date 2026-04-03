@@ -109,6 +109,11 @@ GENERIC_DATE_PATTERNS = [
 
 IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".avif")
 
+ARTICLE_DATETIME_MAX_FUTURE_MS = 6 * 60 * 60 * 1000
+ARTICLE_DATETIME_MAX_AGE_DAYS = 180
+ARTICLE_DATETIME_HINT_DRIFT_DAYS = 7
+ARTICLE_DATETIME_STRONG_DRIFT_DAYS = 30
+
 
 class FetchError(Exception):
     pass
@@ -568,13 +573,55 @@ def extract_time_tag_dates(html: str) -> list[str]:
 def extract_class_based_date_candidates(html: str) -> list[str]:
     candidates: list[str] = []
     patterns = [
-        r'<[^>]+(?:class|id)=["\'][^"\']*(?:date|time|posted|publish|update|entry)[^"\']*["\'][^>]*>(.*?)</[^>]+>',
-        r'<span[^>]+itemprop=["\']datePublished["\'][^>]*>(.*?)</span>',
-        r'<abbr[^>]*>(.*?)</abbr>',
+        re.compile(r"<[^>]+(?:class|id)=[\"']([^\"']*)[\"'][^>]*>(.*?)</[^>]+>", re.IGNORECASE | re.DOTALL),
+        re.compile(r"<span[^>]+itemprop=[\"']datePublished[\"'][^>]*>(.*?)</span>", re.IGNORECASE | re.DOTALL),
+        re.compile(r"<abbr[^>]*>(.*?)</abbr>", re.IGNORECASE | re.DOTALL),
     ]
     for pattern in patterns:
+        for match in pattern.finditer(html):
+            if pattern.pattern.startswith(r"<[^>]+(?:class|id)"):
+                class_or_id = (match.group(1) or "").lower()
+                if not re.search(r"(?:date|time|posted|publish|update|entry)", class_or_id):
+                    continue
+                body = match.group(2)
+            else:
+                body = match.group(1)
+            candidates.append(strip_html(body))
+    return candidates
+
+
+def extract_attribute_based_date_candidates(html: str) -> list[str]:
+    candidates: list[str] = []
+    attr_patterns = [
+        r"<[^>]+(?:datetime|content|title|data-date|data-time|data-datetime|data-pubdate|data-published|data-created)=[\"']([^\"']+)[\"']",
+        r"<[^>]+(?:class|id)=[\"'][^\"']*(?:date|time|posted|publish|update|entry)[^\"']*[\"'][^>]+(?:datetime|content|title|data-date|data-time|data-datetime|data-pubdate|data-published|data-created)=[\"']([^\"']+)[\"']",
+    ]
+    for pattern in attr_patterns:
         for match in re.finditer(pattern, html, re.IGNORECASE | re.DOTALL):
-            candidates.append(strip_html(match.group(1)))
+            candidates.append(unescape(match.group(1)).strip())
+    return candidates
+
+
+def extract_combined_split_datetime_candidates(html: str) -> list[str]:
+    candidates: list[str] = []
+    sanitized = sanitize_html_for_date_search(html)
+    separators = r'(?:\s|　|&nbsp;|<[^>]+>){0,12}'
+    combined_patterns = [
+        re.compile(
+            rf'((?:20)?\d{{2}}[./年-]\s*\d{{1,2}}[./月-]\s*\d{{1,2}}日?){separators}(\d{{1,2}}:\d{{2}}(?::\d{{2}})?)',
+            re.IGNORECASE | re.DOTALL,
+        ),
+        re.compile(
+            rf'((?:20)?\d{{2}}[-/]\d{{2}}[-/]\d{{2}}){separators}(\d{{1,2}}:\d{{2}}(?::\d{{2}})?)',
+            re.IGNORECASE | re.DOTALL,
+        ),
+    ]
+    for pattern in combined_patterns:
+        for match in pattern.finditer(sanitized):
+            date_text = normalize_spaces(strip_html(unescape(match.group(1))))
+            time_text = normalize_spaces(strip_html(unescape(match.group(2))))
+            if date_text and time_text:
+                candidates.append(f"{date_text} {time_text}")
     return candidates
 
 
@@ -587,25 +634,35 @@ def extract_visible_date_candidates(html: str) -> list[str]:
     return candidates
 
 
-def pick_best_millis(values: list[tuple[int, bool]], strategy: str = "first") -> int:
+def build_datetime_candidate(millis: int, has_time: bool, source: str, raw: str = "") -> dict:
+    return {
+        "millis": int(millis),
+        "has_time": bool(has_time),
+        "source": source,
+        "raw": raw,
+    }
+
+
+
+def pick_best_datetime(values: list[dict], strategy: str = "first") -> Optional[dict]:
     if not values:
-        return 0
-    timed = [millis for millis, has_time in values if has_time]
-    dated = [millis for millis, has_time in values if not has_time]
-    source = timed if timed else dated
+        return None
+    timed = [item for item in values if item.get("has_time")]
+    source = timed if timed else values
     if not source:
-        return 0
+        return None
     if strategy == "max":
-        return max(source)
+        return max(source, key=lambda item: int(item.get("millis") or 0))
     if strategy == "min":
-        return min(source)
+        return min(source, key=lambda item: int(item.get("millis") or 0))
     return source[0]
 
 
-def filter_plausible_datetimes(values: list[str]) -> tuple[list[tuple[int, bool]], list[tuple[int, bool]]]:
+
+def filter_plausible_datetimes(values: list[str], source: str) -> tuple[list[dict], list[dict]]:
     now_ms = now_millis()
-    plausible: list[tuple[int, bool]] = []
-    fallback: list[tuple[int, bool]] = []
+    plausible: list[dict] = []
+    fallback: list[dict] = []
     seen = set()
     for value in values:
         normalized = normalize_spaces(value)
@@ -616,11 +673,80 @@ def filter_plausible_datetimes(values: list[str]) -> tuple[list[tuple[int, bool]
         if not millis:
             continue
         target = plausible if now_ms - 365 * 24 * 60 * 60 * 1000 <= millis <= now_ms + 10 * 60 * 1000 else fallback
-        target.append((millis, has_time))
+        target.append(build_datetime_candidate(millis, has_time, source, normalized))
     return plausible, fallback
 
 
-def extract_published_at_from_article_html(html: str) -> int:
+
+def datetime_candidate_from_hint(millis: int, has_time: bool, source: str) -> Optional[dict]:
+    if not millis:
+        return None
+    return build_datetime_candidate(millis, has_time, source)
+
+
+
+def local_date_tuple(millis: int) -> Optional[tuple[int, int, int]]:
+    if not millis or millis <= 0:
+        return None
+    dt = datetime.fromtimestamp(millis / 1000, tz=JST)
+    return dt.year, dt.month, dt.day
+
+
+
+def is_recent_article_datetime(millis: int) -> bool:
+    if not millis:
+        return False
+    now_ms = now_millis()
+    oldest_ms = now_ms - ARTICLE_DATETIME_MAX_AGE_DAYS * 24 * 60 * 60 * 1000
+    newest_ms = now_ms + ARTICLE_DATETIME_MAX_FUTURE_MS
+    return oldest_ms <= millis <= newest_ms
+
+
+def choose_best_published_candidate(page_candidate: Optional[dict], hint_candidate: Optional[dict]) -> Optional[dict]:
+    now_ms = now_millis()
+    page = dict(page_candidate) if page_candidate else None
+    hint = dict(hint_candidate) if hint_candidate else None
+
+    if page:
+        page_millis = int(page.get("millis") or 0)
+        if page_millis <= 0 or page_millis > now_ms + ARTICLE_DATETIME_MAX_FUTURE_MS:
+            page = None
+        elif hint:
+            hint_millis = int(hint.get("millis") or 0)
+            if hint_millis > 0:
+                drift_ms = abs(page_millis - hint_millis)
+                allowed_days = ARTICLE_DATETIME_STRONG_DRIFT_DAYS if page.get("source") == "strong" else ARTICLE_DATETIME_HINT_DRIFT_DAYS
+                if drift_ms > allowed_days * 24 * 60 * 60 * 1000 and (not page.get("has_time") or page.get("source") != "strong"):
+                    page = None
+        elif not is_recent_article_datetime(page_millis) and page.get("source") != "strong":
+            page = None
+
+    if hint:
+        hint_millis = int(hint.get("millis") or 0)
+        if hint_millis <= 0 or hint_millis > now_ms + ARTICLE_DATETIME_MAX_FUTURE_MS:
+            hint = None
+
+    if page and page.get("has_time"):
+        return page
+
+    if hint and hint.get("has_time"):
+        if page is None:
+            return hint
+        page_millis = int(page.get("millis") or 0)
+        hint_millis = int(hint.get("millis") or 0)
+        if local_date_tuple(page_millis) == local_date_tuple(hint_millis):
+            return hint
+        if page_millis and hint_millis and abs(page_millis - hint_millis) <= 36 * 60 * 60 * 1000:
+            return hint
+
+    if page and is_recent_article_datetime(int(page.get("millis") or 0)):
+        return page
+    if hint:
+        return hint
+    return page
+
+
+def extract_published_at_details_from_article_html(html: str) -> Optional[dict]:
     strong_candidates: list[str] = []
     for key in [
         "article:published_time",
@@ -636,27 +762,33 @@ def extract_published_at_from_article_html(html: str) -> int:
 
     medium_candidates: list[str] = []
     medium_candidates.extend(extract_time_tag_dates(html))
+    medium_candidates.extend(extract_attribute_based_date_candidates(html))
+    medium_candidates.extend(extract_combined_split_datetime_candidates(html))
     medium_candidates.extend(extract_class_based_date_candidates(html))
 
     weak_candidates = extract_visible_date_candidates(html)
 
-    plausible, fallback = filter_plausible_datetimes(strong_candidates)
-    best = pick_best_millis(plausible, "first") or pick_best_millis(fallback, "first")
+    plausible, fallback = filter_plausible_datetimes(strong_candidates, "strong")
+    best = pick_best_datetime(plausible, "first") or pick_best_datetime(fallback, "first")
     if best:
         return best
 
-    plausible, fallback = filter_plausible_datetimes(medium_candidates)
-    # コメント時刻に引っ張られやすいので、maxではなく先頭寄りを採用。
-    best = pick_best_millis(plausible, "first") or pick_best_millis(fallback, "first")
+    plausible, fallback = filter_plausible_datetimes(medium_candidates, "medium")
+    best = pick_best_datetime(plausible, "first")
     if best:
         return best
 
-    plausible, fallback = filter_plausible_datetimes(weak_candidates)
-    best = pick_best_millis(plausible, "first") or pick_best_millis(fallback, "first")
+    plausible, fallback = filter_plausible_datetimes(weak_candidates, "weak")
+    best = pick_best_datetime(plausible, "first")
     if best:
         return best
 
-    return 0
+    return None
+
+
+def extract_published_at_from_article_html(html: str) -> int:
+    result = extract_published_at_details_from_article_html(html)
+    return int(result.get("millis") or 0) if result else 0
 
 
 def rank_candidate(candidate: dict) -> tuple:
@@ -686,11 +818,13 @@ def extract_article_candidates_from_homepage(site: dict, html: str, final_url: s
             if is_probably_noise_article(site, href, title_hint):
                 continue
             seen.add(href)
+            published_hint = extract_published_at_details_from_article_html(block_html)
             items.append({
                 "url": href,
                 "title_hint": title_hint,
                 "thumbnail_hint": extract_image_from_fragment(block_html, base_url),
-                "published_hint": extract_published_at_from_article_html(block_html),
+                "published_hint": int(published_hint.get("millis") or 0) if published_hint else 0,
+                "published_hint_has_time": bool(published_hint.get("has_time")) if published_hint else False,
                 "archive_no": extract_archive_numeric_id(href),
                 "source_order": source_order,
             })
@@ -714,11 +848,13 @@ def extract_article_candidates_from_homepage(site: dict, html: str, final_url: s
             context_end = min(len(html), anchor_match.end() + 2400)
             context_html = html[context_start:context_end]
             seen.add(href)
+            published_hint = extract_published_at_details_from_article_html(context_html)
             items.append({
                 "url": href,
                 "title_hint": title_hint,
                 "thumbnail_hint": extract_image_from_fragment(context_html, base_url),
-                "published_hint": extract_published_at_from_article_html(context_html),
+                "published_hint": int(published_hint.get("millis") or 0) if published_hint else 0,
+                "published_hint_has_time": bool(published_hint.get("has_time")) if published_hint else False,
                 "archive_no": extract_archive_numeric_id(href),
                 "source_order": source_order,
             })
@@ -757,9 +893,15 @@ def build_article_from_page(site: dict, candidate: dict, index: int) -> Optional
         or normalize_thumbnail_url(extract_image_from_fragment(article_html[:12000], final_url), final_url)
     )
 
-    published_at = extract_published_at_from_article_html(article_html)
-    if not published_at:
-        published_at = int(candidate.get("published_hint") or 0)
+    page_published = extract_published_at_details_from_article_html(article_html)
+    homepage_hint = datetime_candidate_from_hint(
+        int(candidate.get("published_hint") or 0),
+        bool(candidate.get("published_hint_has_time")),
+        "homepage",
+    )
+    chosen_published = choose_best_published_candidate(page_published, homepage_hint)
+    published_at = int(chosen_published.get("millis") or 0) if chosen_published else 0
+    published_at_has_time = bool(chosen_published.get("has_time")) if chosen_published else False
 
     # 競合方式に寄せるため、built-in 側は「時刻が取れないものを今時刻で埋める」ことはしない。
     if not published_at:
@@ -767,6 +909,7 @@ def build_article_from_page(site: dict, candidate: dict, index: int) -> Optional
         if archive_no > 0:
             # 最終保険: 同一サイト内の順序維持用。公開時刻ではないので、時刻が取れない記事だけに限定。
             published_at = archive_no
+            published_at_has_time = False
         else:
             return None
 
@@ -778,6 +921,7 @@ def build_article_from_page(site: dict, candidate: dict, index: int) -> Optional
         "url": final_url,
         "publishedAt": int(published_at),
         "thumbnailUrl": thumb,
+        "_publishedAtHasTime": published_at_has_time,
     }
 
 
@@ -812,8 +956,9 @@ def parse_feed(feed_raw: bytes, site: dict, feed_url: str, content_type: str = "
             first_text(entry.find("{http://www.w3.org/2005/Atom}published")),
         ]
         published_at = 0
+        published_at_has_time = False
         for value in date_candidates:
-            published_at = parse_datetime_to_millis(value)
+            published_at, published_at_has_time = parse_datetime_detailed(value)
             if published_at:
                 break
         description_html = (
@@ -836,6 +981,7 @@ def parse_feed(feed_raw: bytes, site: dict, feed_url: str, content_type: str = "
             "url": url,
             "publishedAt": int(published_at),
             "thumbnailUrl": pick_rss_thumb(entry, feed_url, description_html),
+            "_publishedAtHasTime": published_at_has_time,
         })
     items.sort(key=lambda x: int(x.get("publishedAt") or 0), reverse=True)
     return items
@@ -866,6 +1012,7 @@ def sanitize_articles(site: dict, articles: list[dict]) -> list[dict]:
             "url": url,
             "publishedAt": published_at,
             "thumbnailUrl": thumb,
+            "_publishedAtHasTime": bool(article.get("_publishedAtHasTime")),
         })
     results.sort(key=lambda x: int(x.get("publishedAt") or 0), reverse=True)
     return results[:MAX_ARTICLES_PER_SITE]
@@ -919,11 +1066,12 @@ def fetch_articles_for_site(site: dict) -> list[dict]:
 
     homepage_articles = fetch_articles_from_homepage_and_article_pages(site)
 
-    def score(items: list[dict]) -> tuple[int, int, int]:
+    def score(items: list[dict]) -> tuple[int, int, int, int]:
+        precise_dates = sum(1 for item in items if item.get("_publishedAtHasTime"))
         valid_thumbs = sum(1 for item in items if item.get("thumbnailUrl"))
         actual_dates = sum(1 for item in items if int(item.get("publishedAt") or 0) > 10_000_000_000)
         newest = max((int(item.get("publishedAt") or 0) for item in items), default=0)
-        return (actual_dates, valid_thumbs, newest)
+        return (precise_dates, actual_dates, valid_thumbs, newest)
 
     chosen = homepage_articles if score(homepage_articles) >= score(best_feed_articles) else best_feed_articles
     if not chosen:
@@ -957,7 +1105,7 @@ def main() -> int:
         if not url or url in seen_urls:
             continue
         seen_urls.add(url)
-        final_articles.append(article)
+        final_articles.append({k: v for k, v in article.items() if not str(k).startswith("_")})
 
     payload = {
         "version": 1,

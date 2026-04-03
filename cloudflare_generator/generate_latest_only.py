@@ -1,16 +1,15 @@
 import json
 import math
-import os
-from collections import defaultdict
 from pathlib import Path
 
 PAGE_SIZE = 30
-POPULAR_WINDOW_MS = 24 * 60 * 60 * 1000
-
 ROOT = Path(__file__).resolve().parent
 PRIMARY_SOURCE_FILE = ROOT / "master_articles.json"
 FALLBACK_SOURCE_FILE = ROOT / "master_articles.sample.json"
 OUT_DIR = ROOT / "output"
+LATEST_DIR = OUT_DIR / "v1" / "latest"
+META_FILE = OUT_DIR / "v1" / "meta.json"
+HEADERS_FILE = OUT_DIR / "_headers"
 
 
 def ensure_dir(path: Path) -> None:
@@ -42,13 +41,12 @@ def sort_articles(articles: list[dict]) -> list[dict]:
 def to_page_payload(articles: list[dict], page: int, generated_at: int) -> dict:
     start = (page - 1) * PAGE_SIZE
     end = start + PAGE_SIZE
-    page_items = articles[start:end]
     return {
         "version": 1,
         "generatedAt": generated_at,
         "page": page,
         "hasNext": end < len(articles),
-        "articles": page_items,
+        "articles": articles[start:end],
     }
 
 
@@ -58,31 +56,16 @@ def write_json(path: Path, payload: dict) -> None:
         json.dump(payload, f, ensure_ascii=False, indent=2)
 
 
-def write_pages(base_dir: Path, articles: list[dict], generated_at: int) -> int:
-    page_count = max(1, math.ceil(len(articles) / PAGE_SIZE)) if articles else 1
-    for page in range(1, page_count + 1):
-        payload = to_page_payload(articles, page, generated_at)
-        write_json(base_dir / f"page-{page}.json", payload)
-    return page_count
-
-
-def build_popular(articles: list[dict], generated_at: int) -> list[dict]:
-    threshold = generated_at - POPULAR_WINDOW_MS
-    recent = [a for a in articles if int(a.get("publishedAt", 0)) >= threshold]
-    return recent if recent else articles
-
-
-def clear_out_dir(target_dir: Path) -> None:
-    if not target_dir.exists():
+def clear_latest_pages() -> None:
+    if not LATEST_DIR.exists():
         return
-    for root, dirs, files in os.walk(target_dir, topdown=False):
-        for name in files:
-            Path(root, name).unlink()
-        for name in dirs:
-            Path(root, name).rmdir()
+    for page_file in LATEST_DIR.glob("page-*.json"):
+        page_file.unlink()
 
 
-def write_headers() -> None:
+def ensure_headers() -> None:
+    if HEADERS_FILE.exists():
+        return
     headers = """/v1/latest/*
   Content-Type: application/json; charset=utf-8
   Cache-Control: public, max-age=300
@@ -103,7 +86,8 @@ def write_headers() -> None:
   Cache-Control: public, max-age=900
   Access-Control-Allow-Origin: *
 """
-    (OUT_DIR / "_headers").write_text(headers, encoding="utf-8")
+    ensure_dir(OUT_DIR)
+    HEADERS_FILE.write_text(headers, encoding="utf-8")
 
 
 def main() -> None:
@@ -111,33 +95,30 @@ def main() -> None:
     generated_at = int(source.get("generatedAt", 0))
     articles = sort_articles(unique_articles(source.get("articles", [])))
 
-    clear_out_dir(OUT_DIR)
-    ensure_dir(OUT_DIR / "v1")
+    clear_latest_pages()
+    ensure_dir(LATEST_DIR)
 
-    latest_page_count = write_pages(OUT_DIR / "v1" / "latest", articles, generated_at)
-    popular_articles = build_popular(articles, generated_at)
-    popular_page_count = write_pages(OUT_DIR / "v1" / "popular", popular_articles, generated_at)
-
-    site_groups: dict[str, list[dict]] = defaultdict(list)
-    for article in articles:
-        site_id = (article.get("siteId") or "").strip()
-        if site_id:
-            site_groups[site_id].append(article)
-
-    for site_id, site_articles in site_groups.items():
-        write_pages(OUT_DIR / "v1" / "sites" / site_id, site_articles, generated_at)
+    page_count = max(1, math.ceil(len(articles) / PAGE_SIZE)) if articles else 1
+    for page in range(1, page_count + 1):
+        payload = to_page_payload(articles, page, generated_at)
+        write_json(LATEST_DIR / f"page-{page}.json", payload)
 
     meta = {
         "version": 1,
         "generatedAt": generated_at,
-        "latestPageCount": latest_page_count,
-        "popularPageCount": popular_page_count,
-        "siteCount": len(site_groups),
+        "latestPageCount": page_count,
     }
-    write_json(OUT_DIR / "v1" / "meta.json", meta)
-    write_headers()
+    if META_FILE.exists():
+        try:
+            current_meta = json.loads(META_FILE.read_text(encoding="utf-8"))
+            current_meta.update(meta)
+            meta = current_meta
+        except Exception:
+            pass
+    write_json(META_FILE, meta)
+    ensure_headers()
 
-    print("Generated files under:", OUT_DIR)
+    print("Generated latest pages under:", LATEST_DIR)
 
 
 if __name__ == "__main__":

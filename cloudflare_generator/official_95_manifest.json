@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "route": "official_95",
+  "official_target_site_count": 95,
+  "notes": [
+    "build_safe_builtins_master_from_sources.py を正式ルートとして採用",
+    "build_official_builtins_master_from_sources.py は正式ルート起動用ラッパー",
+    "refresh_official_95.ps1 は正式ルートの一括実行用",
+    "safe_builtin_site_ids.json が95サイトの採用リスト",
+    "build_priority_builtins_master_from_sources.py や audit_builtin_site_coverage.py は保守・監査用として別扱い"
+  ]
+}
