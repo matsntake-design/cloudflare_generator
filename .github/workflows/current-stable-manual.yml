@@ -1,19 +1,22 @@
-name: Current stable manual deploy
+name: Current stable full deploy
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "30 * * * *"
 
 permissions:
   contents: read
 
 concurrency:
-  group: matomeruchi-cloudflare-pages-manual
+  group: matomeruchi-full-deploy
   cancel-in-progress: false
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -31,7 +34,7 @@ jobs:
       - name: Install Wrangler
         run: npm install --no-save wrangler@4
 
-      - name: Build safe 95 full JSON
+      - name: Build safe built-ins full JSON
         run: |
           python cloudflare_generator/build_safe_builtins_master_from_sources.py
           python cloudflare_generator/generate_pages.py
@@ -42,4 +45,8 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_PAGES_PROJECT: ${{ secrets.CLOUDFLARE_PAGES_PROJECT }}
         run: |
-          npx wrangler pages deploy cloudflare_generator/output             --project-name="$CLOUDFLARE_PAGES_PROJECT"             --branch=main             --commit-message="current stable manual deploy"             --commit-dirty=true
+          npx wrangler pages deploy cloudflare_generator/output \
+            --project-name="$CLOUDFLARE_PAGES_PROJECT" \
+            --branch=main \
+            --commit-message="current stable full deploy" \
+            --commit-dirty=true
