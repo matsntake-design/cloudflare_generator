@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parent
 PRIMARY_SOURCE_FILE = ROOT / "master_articles.json"
 FALLBACK_SOURCE_FILE = ROOT / "master_articles.sample.json"
 OUT_DIR = ROOT / "output"
+SITE_API_DIR = OUT_DIR / "v1" / "site-api"
 
 
 def ensure_dir(path: Path) -> None:
@@ -66,6 +67,49 @@ def write_pages(base_dir: Path, articles: list[dict], generated_at: int) -> int:
     return page_count
 
 
+def format_compact_datetime(millis: int) -> str:
+    if millis <= 10_000_000_000:
+        return ""
+    from datetime import datetime, timezone
+    return datetime.fromtimestamp(millis / 1000, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def to_compact_article(article: dict) -> dict | None:
+    published_at = int(article.get("publishedAt", 0) or 0)
+    raw_date = format_compact_datetime(published_at)
+    if not raw_date:
+        return None
+    return {
+        "o": article.get("id") or "",
+        "p": article.get("title") or "",
+        "q": article.get("url") or "",
+        "r": article.get("thumbnailUrl") or "",
+        "s": raw_date,
+        "u": article.get("siteName") or "",
+    }
+
+
+def to_compact_page_payload(articles: list[dict], page: int, generated_at: int) -> dict:
+    start = (page - 1) * PAGE_SIZE
+    end = start + PAGE_SIZE
+    compact_items = [item for item in (to_compact_article(article) for article in articles[start:end]) if item]
+    return {
+        "version": 1,
+        "generatedAt": generated_at,
+        "page": page,
+        "hasNext": end < len(articles),
+        "d": compact_items,
+    }
+
+
+def write_compact_pages(base_dir: Path, articles: list[dict], generated_at: int) -> int:
+    page_count = max(1, math.ceil(len(articles) / PAGE_SIZE)) if articles else 1
+    for page in range(1, page_count + 1):
+        payload = to_compact_page_payload(articles, page, generated_at)
+        write_json(base_dir / f"page-{page}.json", payload)
+    return page_count
+
+
 def build_popular(articles: list[dict], generated_at: int) -> list[dict]:
     threshold = generated_at - POPULAR_WINDOW_MS
     recent = [a for a in articles if int(a.get("publishedAt", 0)) >= threshold]
@@ -102,6 +146,11 @@ def write_headers() -> None:
   Content-Type: application/json; charset=utf-8
   Cache-Control: public, max-age=900
   Access-Control-Allow-Origin: *
+
+/v1/site-api/*
+  Content-Type: application/json; charset=utf-8
+  Cache-Control: public, max-age=900
+  Access-Control-Allow-Origin: *
 """
     (OUT_DIR / "_headers").write_text(headers, encoding="utf-8")
 
@@ -126,6 +175,7 @@ def main() -> None:
 
     for site_id, site_articles in site_groups.items():
         write_pages(OUT_DIR / "v1" / "sites" / site_id, site_articles, generated_at)
+        write_compact_pages(SITE_API_DIR / site_id, site_articles, generated_at)
 
     meta = {
         "version": 1,

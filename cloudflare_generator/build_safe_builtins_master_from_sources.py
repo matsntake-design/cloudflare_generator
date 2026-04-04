@@ -75,11 +75,16 @@ def sort_articles(articles: Iterable[dict]) -> list[dict]:
     return sorted(articles, key=lambda x: int(x.get("publishedAt") or 0), reverse=True)
 
 
-def merge_articles(refreshed_articles: list[dict], existing_articles: list[dict], target_site_ids: set[str]) -> list[dict]:
+def merge_articles(
+    refreshed_articles: list[dict],
+    existing_articles: list[dict],
+    target_site_ids: set[str],
+    allowed_site_ids: set[str],
+) -> list[dict]:
     preferred = sort_articles(refreshed_articles)
     untouched_existing = [
         article for article in existing_articles
-        if (article.get("siteId") or "") not in target_site_ids
+        if (article.get("siteId") or "") in allowed_site_ids and (article.get("siteId") or "") not in target_site_ids
     ]
     merged = dedupe_articles_by_url([*preferred, *untouched_existing])
     return sort_articles(merged)
@@ -152,6 +157,7 @@ def resolve_target_sites(all_sites: list[dict], requested_ids: list[str]) -> lis
 def main() -> int:
     requested_ids = sys.argv[1:]
     all_sites = full.load_sites()
+    safe_site_ids = set(load_safe_site_ids())
     target_sites = resolve_target_sites(all_sites, requested_ids)
     if not target_sites:
         print("対象サイトが見つかりませんでした。siteId を確認してください。")
@@ -170,6 +176,7 @@ def main() -> int:
         refreshed_articles=refreshed_articles,
         existing_articles=existing_articles,
         target_site_ids={site.get("id") for site in target_sites},
+        allowed_site_ids=safe_site_ids,
     )
 
     payload = {

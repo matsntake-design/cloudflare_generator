@@ -14,7 +14,7 @@ from urllib.request import Request, urlopen
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parent
-POPULAR_SITES_FILE = ROOT.parent / "popular_sites.json"
+POPULAR_SITES_FILE = ROOT / "popular_sites.json"
 OUTPUT_FILE = ROOT / "master_articles.json"
 
 USER_AGENT = (
@@ -282,6 +282,44 @@ def extract_archive_numeric_id(url: str) -> int:
     return int(match.group(1)) if match else 0
 
 
+def normalize_site_name_variant(text: str) -> str:
+    return normalize_spaces(strip_html(text)).replace("～", "〜").strip()
+
+
+def build_site_name_variants(site_name: str) -> list[str]:
+    base = normalize_site_name_variant(site_name)
+    if not base:
+        return []
+    variants = {
+        base,
+        base.replace("〜", "～"),
+        base.replace("～", "〜"),
+    }
+    cleaned = set()
+    for value in variants:
+        normalized = normalize_spaces(value).strip("-｜|:： ")
+        if normalized:
+            cleaned.add(normalized)
+    return sorted(cleaned, key=len, reverse=True)
+
+
+def strip_site_name_from_title(cleaned_title: str, site_name: str) -> str:
+    result = cleaned_title
+    for variant in build_site_name_variants(site_name):
+        escaped = re.escape(variant)
+        patterns = [
+            rf"^\s*{escaped}\s*[:：|｜]\s*",
+            rf"\s*[:：|｜]\s*{escaped}\s*$",
+        ]
+        changed = True
+        while changed:
+            before = result
+            for pattern in patterns:
+                result = re.sub(pattern, "", result).strip()
+            changed = result != before
+    return result
+
+
 def clean_article_title(site: dict, title: str) -> str:
     cleaned = normalize_spaces(strip_html(title))
     site_id = site.get("id", "")
@@ -291,6 +329,7 @@ def clean_article_title(site: dict, title: str) -> str:
         cleaned = re.sub(r"^\d+\s+", "", cleaned).strip()
     for pattern in SITE_SUFFIX_PATTERNS.get(site_id, []):
         cleaned = re.sub(pattern, "", cleaned).strip()
+    cleaned = strip_site_name_from_title(cleaned, site.get("name", ""))
     cleaned = cleaned.strip("-｜|:： ")
     return cleaned
 
@@ -528,6 +567,8 @@ def is_probably_noise_article(site: dict, url: str, title: str) -> bool:
     path = parsed.path or ""
     normalized_title = normalize_spaces(title)
     if "/archives/cat_" in path:
+        return True
+    if re.search(r"/archives/(?:20)?\d{2}-\d{2}(?:-\d{2})?\.html$", path, re.IGNORECASE):
         return True
     if normalized_title in NOISE_TITLES:
         return True

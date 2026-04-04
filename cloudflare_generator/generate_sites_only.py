@@ -9,6 +9,7 @@ PRIMARY_SOURCE_FILE = ROOT / 'master_articles.json'
 FALLBACK_SOURCE_FILE = ROOT / 'master_articles.sample.json'
 OUT_DIR = ROOT / 'output'
 SITES_DIR = OUT_DIR / 'v1' / 'sites'
+SITE_API_DIR = OUT_DIR / 'v1' / 'site-api'
 META_FILE = OUT_DIR / 'v1' / 'meta.json'
 HEADERS_FILE = OUT_DIR / '_headers'
 
@@ -57,13 +58,48 @@ def write_json(path: Path, payload: dict) -> None:
         json.dump(payload, f, ensure_ascii=False, indent=2)
 
 
+def format_compact_datetime(millis: int) -> str:
+    if millis <= 10_000_000_000:
+        return ''
+    from datetime import datetime, timezone
+    return datetime.fromtimestamp(millis / 1000, tz=timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+
+def to_compact_article(article: dict) -> dict | None:
+    published_at = int(article.get('publishedAt', 0) or 0)
+    raw_date = format_compact_datetime(published_at)
+    if not raw_date:
+        return None
+    return {
+        'o': article.get('id') or '',
+        'p': article.get('title') or '',
+        'q': article.get('url') or '',
+        'r': article.get('thumbnailUrl') or '',
+        's': raw_date,
+        'u': article.get('siteName') or '',
+    }
+
+
+def to_compact_page_payload(articles: list[dict], page: int, generated_at: int) -> dict:
+    start = (page - 1) * PAGE_SIZE
+    end = start + PAGE_SIZE
+    return {
+        'version': 1,
+        'generatedAt': generated_at,
+        'page': page,
+        'hasNext': end < len(articles),
+        'd': [item for item in (to_compact_article(article) for article in articles[start:end]) if item],
+    }
+
+
 def clear_site_pages() -> None:
-    if not SITES_DIR.exists():
-        return
-    for site_dir in SITES_DIR.iterdir():
-        if site_dir.is_dir():
-            for page_file in site_dir.glob('page-*.json'):
-                page_file.unlink()
+    for target_dir in [SITES_DIR, SITE_API_DIR]:
+        if not target_dir.exists():
+            continue
+        for site_dir in target_dir.iterdir():
+            if site_dir.is_dir():
+                for page_file in site_dir.glob('page-*.json'):
+                    page_file.unlink()
 
 
 def ensure_headers() -> None:
@@ -88,6 +124,11 @@ def ensure_headers() -> None:
   Content-Type: application/json; charset=utf-8
   Cache-Control: public, max-age=900
   Access-Control-Allow-Origin: *
+
+/v1/site-api/*
+  Content-Type: application/json; charset=utf-8
+  Cache-Control: public, max-age=900
+  Access-Control-Allow-Origin: *
 """
     ensure_dir(OUT_DIR)
     HEADERS_FILE.write_text(headers, encoding='utf-8')
@@ -100,6 +141,7 @@ def main() -> None:
 
     clear_site_pages()
     ensure_dir(SITES_DIR)
+    ensure_dir(SITE_API_DIR)
 
     site_groups: dict[str, list[dict]] = defaultdict(list)
     for article in articles:
@@ -112,6 +154,8 @@ def main() -> None:
         for page in range(1, page_count + 1):
             payload = to_page_payload(site_articles, page, generated_at)
             write_json(SITES_DIR / site_id / f'page-{page}.json', payload)
+            compact_payload = to_compact_page_payload(site_articles, page, generated_at)
+            write_json(SITE_API_DIR / site_id / f'page-{page}.json', compact_payload)
 
     meta = {
         'version': 1,
