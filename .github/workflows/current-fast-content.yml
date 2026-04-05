@@ -13,7 +13,7 @@ concurrency:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
 
     steps:
       - name: Checkout
@@ -53,20 +53,18 @@ jobs:
               with urllib.request.urlopen(url, timeout=30) as response:
                   dest.write_bytes(response.read())
 
-          # latest は現行 production を保持
           try:
               download(f"{base}/latest/page-1.json", out / "latest" / "page-1.json")
           except Exception as e:
               print(f"skip latest/page-1.json: {e}")
 
-          # meta は最後に更新するので、ここでは最低限だけ作る
           meta = out / "meta.json"
           meta.write_text(
               json.dumps(
                   {
                       "version": 1,
                       "generatedAt": int(time.time() * 1000),
-                      "mode": "fast-content"
+                      "mode": "fast-content-profile"
                   },
                   ensure_ascii=False,
                   indent=2
@@ -75,11 +73,68 @@ jobs:
           )
           PY
 
-      - name: Build sites, site-api and popular JSON
+      - name: Profile build safe built-ins
         run: |
-          python cloudflare_generator/build_safe_builtins_master_from_sources.py
-          python cloudflare_generator/generate_sites_only.py
-          python cloudflare_generator/build_popular_master_from_sources.py
+          python - <<'PY'
+          import subprocess
+          import time
+          import sys
+
+          start = time.time()
+          cmd = ["python", "cloudflare_generator/build_safe_builtins_master_from_sources.py"]
+          result = subprocess.run(cmd)
+          elapsed = time.time() - start
+
+          print("")
+          print("========================================")
+          print(f"[PROFILE] build_safe_builtins_master_from_sources.py: {elapsed:.2f} sec")
+          print("========================================")
+          print("")
+
+          sys.exit(result.returncode)
+          PY
+
+      - name: Profile generate sites and site-api
+        run: |
+          python - <<'PY'
+          import subprocess
+          import time
+          import sys
+
+          start = time.time()
+          cmd = ["python", "cloudflare_generator/generate_sites_only.py"]
+          result = subprocess.run(cmd)
+          elapsed = time.time() - start
+
+          print("")
+          print("========================================")
+          print(f"[PROFILE] generate_sites_only.py: {elapsed:.2f} sec")
+          print("========================================")
+          print("")
+
+          sys.exit(result.returncode)
+          PY
+
+      - name: Profile build popular
+        run: |
+          python - <<'PY'
+          import subprocess
+          import time
+          import sys
+
+          start = time.time()
+          cmd = ["python", "cloudflare_generator/build_popular_master_from_sources.py"]
+          result = subprocess.run(cmd)
+          elapsed = time.time() - start
+
+          print("")
+          print("========================================")
+          print(f"[PROFILE] build_popular_master_from_sources.py: {elapsed:.2f} sec")
+          print("========================================")
+          print("")
+
+          sys.exit(result.returncode)
+          PY
 
       - name: Refresh meta.json
         run: |
@@ -99,7 +154,7 @@ jobs:
 
           data["version"] = 1
           data["generatedAt"] = int(time.time() * 1000)
-          data["mode"] = "fast-content"
+          data["mode"] = "fast-content-profile"
 
           meta_path.parent.mkdir(parents=True, exist_ok=True)
           meta_path.write_text(
@@ -117,5 +172,5 @@ jobs:
           npx wrangler pages deploy cloudflare_generator/output \
             --project-name="$CLOUDFLARE_PAGES_PROJECT" \
             --branch=main \
-            --commit-message="current fast content deploy" \
+            --commit-message="current fast content deploy (profile)" \
             --commit-dirty=true
