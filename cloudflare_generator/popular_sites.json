@@ -140,13 +140,6 @@
     "enabledByDefault": false
   },
   {
-    "id": "hattatu-matome-ldblog-jp",
-    "name": "凹凸ちゃんねる　発達障害・生きにくい人のまとめ",
-    "baseUrl": "https://hattatu-matome.ldblog.jp/",
-    "genres": ["生活"],
-    "enabledByDefault": false
-  },
-  {
     "id": "ayacnews2nd-com",
     "name": "ぁゃιぃ(*ﾟーﾟ)NEWS 2nd",
     "baseUrl": "https://ayacnews2nd.com/",
@@ -182,13 +175,6 @@
     "enabledByDefault": false
   },
   {
-    "id": "kurusoku-com",
-    "name": "くるまにあ速報",
-    "baseUrl": "https://kurusoku.com/",
-    "genres": ["自動車"],
-    "enabledByDefault": false
-  },
-  {
     "id": "jumpmatome2ch-biz",
     "name": "ジャンプ速報",
     "baseUrl": "http://jumpsokuhou.com/",
@@ -200,13 +186,6 @@
     "name": "はーとログ",
     "baseUrl": "http://blog.livedoor.jp/love120331/",
     "genres": ["恋愛","結婚","生活"],
-    "enabledByDefault": false
-  },
-  {
-    "id": "lifehack2ch-livedoor-biz",
-    "name": "ライフハックちゃんねる弐式",
-    "baseUrl": "https://lifehack2ch.livedoor.biz/",
-    "genres": ["生活"],
     "enabledByDefault": false
   },
   {
@@ -231,20 +210,6 @@
     "enabledByDefault": false
   },
   {
-    "id": "kabumatome-doorblog-jp",
-    "name": "市況かぶ全力２階建",
-    "baseUrl": "https://kabumatome.doorblog.jp/",
-    "genres": ["投資"],
-    "enabledByDefault": false
-  },
-  {
-    "id": "tozanchannel-blog-jp",
-    "name": "登山ちゃんねる",
-    "baseUrl": "https://tozanchannel.blog.jp/",
-    "genres": ["趣味"],
-    "enabledByDefault": false
-  },
-  {
     "id": "kasegeru-blog-jp",
     "name": "稼げるまとめ速報",
     "baseUrl": "https://kasegeru.blog.jp/",
@@ -266,13 +231,6 @@
     "enabledByDefault": false
   },
   {
-    "id": "2chcopipe-com",
-    "name": "2chコピペ保存道場",
-    "baseUrl": "http://2chcopipe.com/",
-    "genres": ["時事","ニュース"],
-    "enabledByDefault": false
-  },
-  {
     "id": "fx2ch-net",
     "name": "FX2ちゃんねる｜投資系まとめ",
     "baseUrl": "https://www.fx2ch.net/",
@@ -284,20 +242,6 @@
     "name": "NEWSまとめもりー｜2chまとめブログ",
     "baseUrl": "http://www.akb48matomemory.com/",
     "genres": ["ニュース"],
-    "enabledByDefault": false
-  },
-  {
-    "id": "openworldnews-net",
-    "name": "PlaySphere | PS5速報",
-    "baseUrl": "https://openworldnews.net/",
-    "genres": ["ゲーム"],
-    "enabledByDefault": false
-  },
-  {
-    "id": "morikinoko-com",
-    "name": "SS 森きのこ！",
-    "baseUrl": "http://morikinoko.com/",
-    "genres": ["趣味"],
     "enabledByDefault": false
   },
   {
@@ -361,20 +305,6 @@
     "name": "ニュース30over",
     "baseUrl": "https://www.news30over.com/",
     "genres": ["ニュース","VIP","芸能"],
-    "enabledByDefault": false
-  },
-  {
-    "id": "basketballbbs-com",
-    "name": "バスケまとめ・COM",
-    "baseUrl": "https://basketballbbs.com/",
-    "genres": ["スポーツ"],
-    "enabledByDefault": false
-  },
-  {
-    "id": "brow2ing-com",
-    "name": "ブラブラブラウジング",
-    "baseUrl": "http://brow2ing.com/",
-    "genres": ["雑多"],
     "enabledByDefault": false
   },
   {
@@ -455,13 +385,6 @@
     "enabledByDefault": false
   },
   {
-    "id": "s2-log-com",
-    "name": "えすえすログ",
-    "baseUrl": "http://s2-log.com/",
-    "genres": ["趣味"],
-    "enabledByDefault": false
-  },
-  {
     "id": "ouchinews-doorblog-jp",
     "name": "おうち速報",
     "baseUrl": "https://ouchinews.doorblog.jp/",
@@ -476,13 +399,6 @@
     "enabledByDefault": true
   },
   {
-    "id": "calciomatome-net",
-    "name": "カルチョまとめブログ",
-    "baseUrl": "https://www.calciomatome.net/",
-    "genres": ["スポーツ"],
-    "enabledByDefault": false
-  },
-  {
     "id": "gadget2ch-com",
     "name": "ガジェット2ch",
     "baseUrl": "http://www.gadget2ch.com/",
@@ -494,13 +410,6 @@
     "name": "ガールズVIPまとめ",
     "baseUrl": "https://girlsvip-matome.com/",
     "genres": ["芸能","恋愛"],
-    "enabledByDefault": false
-  },
-  {
-    "id": "blog-livedoor-jp-8",
-    "name": "ダイエット速報＠2ちゃんねる",
-    "baseUrl": "http://blog.livedoor.jp/diet2channel/",
-    "genres": ["生活","趣味"],
     "enabledByDefault": false
   },
   {
@@ -518,13 +427,6 @@
     "enabledByDefault": false
   },
   {
-    "id": "blog-livedoor-jp-9",
-    "name": "ゆめ痛 -自動車まとめブログ-",
-    "baseUrl": "http://blog.livedoor.jp/yu_ps13/",
-    "genres": ["自動車"],
-    "enabledByDefault": false
-  },
-  {
     "id": "labaq-com",
     "name": "らばQ",
     "baseUrl": "http://labaq.com/",
@@ -536,13 +438,6 @@
     "name": "イミフｗｗｗ",
     "baseUrl": "https://imihu.net/",
     "genres": ["雑多"],
-    "enabledByDefault": false
-  },
-  {
-    "id": "umamusume-net",
-    "name": "ウマ娘まとめちゃんねる",
-    "baseUrl": "https://umamusume.net/",
-    "genres": ["アニメ","ゲーム"],
     "enabledByDefault": false
   },
   {
@@ -588,13 +483,6 @@
     "enabledByDefault": false
   },
   {
-    "id": "pokekun-matome",
-    "name": "ポケくんまとめ",
-    "baseUrl": "https://pokekun-matome.com/",
-    "genres": ["ポケモン"],
-    "enabledByDefault": false
-  },
-  {
     "id": "gfoodd-com",
     "name": "明日は何を食べようか",
     "baseUrl": "http://gfoodd.com/",
@@ -602,45 +490,10 @@
     "enabledByDefault": false
   },
   {
-    "id": "blog-livedoor-jp-10",
-    "name": "常識的に考えた",
-    "baseUrl": "http://blog.livedoor.jp/jyoushiki43/",
-    "genres": ["時事","ニュース"],
-    "enabledByDefault": false
-  },
-  {
     "id": "toushichannel-net",
     "name": "投資ちゃんねる",
     "baseUrl": "https://toushichannel.net/",
     "genres": ["投資"],
-    "enabledByDefault": false
-  },
-  {
-    "id": "gotravel-blog-jp",
-    "name": "旅行行こうず！ー国内旅行まとめブログー",
-    "baseUrl": "https://gotravel.blog.jp/",
-    "genres": ["グルメ","生活","趣味"],
-    "enabledByDefault": false
-  },
-  {
-    "id": "kidan-m-com",
-    "name": "気団まとめ-噫無情-｜嫁・浮気・メシマズ",
-    "baseUrl": "http://kidan-m.com/",
-    "genres": ["生活","結婚"],
-    "enabledByDefault": false
-  },
-  {
-    "id": "nekowan-com",
-    "name": "猫の動画 ねこわん！",
-    "baseUrl": "https://nekowan.com/",
-    "genres": ["趣味"],
-    "enabledByDefault": false
-  },
-  {
-    "id": "bipblog-com",
-    "name": "BIPブログ",
-    "baseUrl": "http://bipblog.com/",
-    "genres": ["雑多"],
     "enabledByDefault": false
   },
   {
@@ -679,30 +532,9 @@
     "enabledByDefault": true
   },
   {
-    "id": "jisaka",
-    "name": "PCパーツまとめ",
-    "baseUrl": "http://www.jisaka.com/",
-    "genres": ["PC"],
-    "enabledByDefault": true
-  },
-  {
-    "id": "ideal2ch",
-    "name": "理想ちゃんねる",
-    "baseUrl": "https://ideal2ch.livedoor.biz/",
-    "genres": ["雑多","時事","生活","PC"],
-    "enabledByDefault": true
-  },
-  {
     "id": "pandora11",
     "name": "パンドラの憂鬱",
     "baseUrl": "http://pandora11.com/",
-    "genres": ["海外の反応"],
-    "enabledByDefault": true
-  },
-  {
-    "id": "allnationz",
-    "name": "海外の万国反応記",
-    "baseUrl": "http://www.all-nationz.com/",
     "genres": ["海外の反応"],
     "enabledByDefault": true
   },
@@ -711,20 +543,6 @@
     "name": "世界のジャンプ速報",
     "baseUrl": "https://sekainojump.com/",
     "genres": ["海外の反応","漫画"],
-    "enabledByDefault": true
-  },
-  {
-    "id": "dimikai",
-    "name": "海外の反応 ディミヌート",
-    "baseUrl": "https://www.dimikai.com/",
-    "genres": ["海外の反応"],
-    "enabledByDefault": true
-  },
-  {
-    "id": "sekaiminzoku",
-    "name": "世界の憂鬱 海外・韓国の反応",
-    "baseUrl": "http://blog.livedoor.jp/sekaiminzoku/",
-    "genres": ["海外の反応"],
     "enabledByDefault": true
   },
   {
