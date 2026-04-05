@@ -13,7 +13,7 @@ concurrency:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
@@ -64,7 +64,7 @@ jobs:
                   {
                       "version": 1,
                       "generatedAt": int(time.time() * 1000),
-                      "mode": "fast-content-profile"
+                      "mode": "fast-content-incremental"
                   },
                   ensure_ascii=False,
                   indent=2
@@ -73,68 +73,9 @@ jobs:
           )
           PY
 
-      - name: Profile build safe built-ins
+      - name: Fast incremental refresh
         run: |
-          python - <<'PY'
-          import subprocess
-          import time
-          import sys
-
-          start = time.time()
-          cmd = ["python", "cloudflare_generator/build_safe_builtins_master_from_sources.py"]
-          result = subprocess.run(cmd)
-          elapsed = time.time() - start
-
-          print("")
-          print("========================================")
-          print(f"[PROFILE] build_safe_builtins_master_from_sources.py: {elapsed:.2f} sec")
-          print("========================================")
-          print("")
-
-          sys.exit(result.returncode)
-          PY
-
-      - name: Profile generate sites and site-api
-        run: |
-          python - <<'PY'
-          import subprocess
-          import time
-          import sys
-
-          start = time.time()
-          cmd = ["python", "cloudflare_generator/generate_sites_only.py"]
-          result = subprocess.run(cmd)
-          elapsed = time.time() - start
-
-          print("")
-          print("========================================")
-          print(f"[PROFILE] generate_sites_only.py: {elapsed:.2f} sec")
-          print("========================================")
-          print("")
-
-          sys.exit(result.returncode)
-          PY
-
-      - name: Profile build popular
-        run: |
-          python - <<'PY'
-          import subprocess
-          import time
-          import sys
-
-          start = time.time()
-          cmd = ["python", "cloudflare_generator/build_popular_master_from_sources.py"]
-          result = subprocess.run(cmd)
-          elapsed = time.time() - start
-
-          print("")
-          print("========================================")
-          print(f"[PROFILE] build_popular_master_from_sources.py: {elapsed:.2f} sec")
-          print("========================================")
-          print("")
-
-          sys.exit(result.returncode)
-          PY
+          python cloudflare_generator/build_fast_content_incremental.py
 
       - name: Refresh meta.json
         run: |
@@ -154,7 +95,7 @@ jobs:
 
           data["version"] = 1
           data["generatedAt"] = int(time.time() * 1000)
-          data["mode"] = "fast-content-profile"
+          data["mode"] = "fast-content-incremental"
 
           meta_path.parent.mkdir(parents=True, exist_ok=True)
           meta_path.write_text(
@@ -172,5 +113,5 @@ jobs:
           npx wrangler pages deploy cloudflare_generator/output \
             --project-name="$CLOUDFLARE_PAGES_PROJECT" \
             --branch=main \
-            --commit-message="current fast content deploy (profile)" \
+            --commit-message="current fast content deploy (incremental)" \
             --commit-dirty=true
