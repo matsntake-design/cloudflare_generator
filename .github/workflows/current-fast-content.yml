@@ -1,0 +1,121 @@
+name: Current fast content deploy
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: matomeruchi-fast-content-deploy
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install Wrangler
+        run: npm install --no-save wrangler@4
+
+      - name: Prepare output baseline
+        run: |
+          rm -rf cloudflare_generator/output
+          mkdir -p cloudflare_generator/output/v1/latest
+          mkdir -p cloudflare_generator/output/v1
+
+          python - <<'PY'
+          import json
+          import pathlib
+          import time
+          import urllib.request
+
+          base = "https://matomeruchi-data.pages.dev/v1"
+          out = pathlib.Path("cloudflare_generator/output/v1")
+          out.mkdir(parents=True, exist_ok=True)
+
+          def download(url: str, dest: pathlib.Path) -> None:
+              dest.parent.mkdir(parents=True, exist_ok=True)
+              with urllib.request.urlopen(url, timeout=30) as response:
+                  dest.write_bytes(response.read())
+
+          # latest は現行 production を保持
+          try:
+              download(f"{base}/latest/page-1.json", out / "latest" / "page-1.json")
+          except Exception as e:
+              print(f"skip latest/page-1.json: {e}")
+
+          # meta は最後に更新するので、ここでは最低限だけ作る
+          meta = out / "meta.json"
+          meta.write_text(
+              json.dumps(
+                  {
+                      "version": 1,
+                      "generatedAt": int(time.time() * 1000),
+                      "mode": "fast-content"
+                  },
+                  ensure_ascii=False,
+                  indent=2
+              ),
+              encoding="utf-8"
+          )
+          PY
+
+      - name: Build sites, site-api and popular JSON
+        run: |
+          python cloudflare_generator/build_safe_builtins_master_from_sources.py
+          python cloudflare_generator/generate_sites_only.py
+          python cloudflare_generator/build_popular_master_from_sources.py
+
+      - name: Refresh meta.json
+        run: |
+          python - <<'PY'
+          import json
+          import pathlib
+          import time
+
+          meta_path = pathlib.Path("cloudflare_generator/output/v1/meta.json")
+          data = {}
+
+          if meta_path.exists():
+              try:
+                  data = json.loads(meta_path.read_text(encoding="utf-8"))
+              except Exception:
+                  data = {}
+
+          data["version"] = 1
+          data["generatedAt"] = int(time.time() * 1000)
+          data["mode"] = "fast-content"
+
+          meta_path.parent.mkdir(parents=True, exist_ok=True)
+          meta_path.write_text(
+              json.dumps(data, ensure_ascii=False, indent=2),
+              encoding="utf-8"
+          )
+          PY
+
+      - name: Deploy to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_PAGES_PROJECT: ${{ secrets.CLOUDFLARE_PAGES_PROJECT }}
+        run: |
+          npx wrangler pages deploy cloudflare_generator/output \
+            --project-name="$CLOUDFLARE_PAGES_PROJECT" \
+            --branch=main \
+            --commit-message="current fast content deploy" \
+            --commit-dirty=true
