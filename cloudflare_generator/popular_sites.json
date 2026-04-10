@@ -196,13 +196,6 @@
     "enabledByDefault": false
   },
   {
-    "id": "workingnews117-com",
-    "name": "働くモノニュース : 人生VIP職人ブログwww",
-    "baseUrl": "http://workingnews117.com/",
-    "genres": ["VIP"],
-    "enabledByDefault": false
-  },
-  {
     "id": "shikaku2ch-doorblog-jp",
     "name": "資格ちゃんねる",
     "baseUrl": "https://shikaku2ch.doorblog.jp/",
@@ -525,31 +518,10 @@
     "enabledByDefault": true
   },
   {
-    "id": "yaraon",
-    "name": "やらおん！",
-    "baseUrl": "http://yaraon-blog.com/",
-    "genres": ["アニメ","漫画"],
-    "enabledByDefault": true
-  },
-  {
-    "id": "pandora11",
-    "name": "パンドラの憂鬱",
-    "baseUrl": "http://pandora11.com/",
-    "genres": ["海外の反応"],
-    "enabledByDefault": true
-  },
-  {
     "id": "sekainojump",
     "name": "世界のジャンプ速報",
     "baseUrl": "https://sekainojump.com/",
     "genres": ["海外の反応","漫画"],
-    "enabledByDefault": true
-  },
-  {
-    "id": "kaigainoomaera",
-    "name": "海外のお前ら　海外の反応",
-    "baseUrl": "https://kaigainoomaera.com/",
-    "genres": ["海外の反応"],
     "enabledByDefault": true
   },
   {
